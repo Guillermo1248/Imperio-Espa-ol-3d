@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Imperio Español 1794 — Visor 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.116/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+
+<style>
+  body { margin: 0; overflow: hidden; font-family: 'Crimson Text', Georgia, serif; background: #000; }
+  #cesiumContainer { width: 100vw; height: 100vh; }
+  .cesium-widget-credits, .cesium-credit-logoContainer,
+  .cesium-credit-expand-link, .cesium-viewer-bottom { display: none !important; }
+
+  /* ── Bandera ondeante (esquina superior izquierda) ─────────────── */
+  #flag-canvas {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    width: 180px;
+    height: 130px;          /* relación ~3:2 con margen para ondular */
+    z-index: 105;            /* por encima del visor pero no del tooltip */
+    pointer-events: none;    /* no estorba al clic sobre el mapa */
+    filter: drop-shadow(2px 3px 6px rgba(0, 0, 0, 0.55));
+  }
+
+  /* ── Encabezado imperial central (top, con columnas de Hércules) ─── */
+  #titulo-imperio-container {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 25px;
+    z-index: 1000;
+    pointer-events: none; /* Permite clickar el mapa por detrás */
+    background: linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(8, 6, 2, 0.75) 20%, rgba(8, 6, 2, 0.75) 80%, rgba(0,0,0,0) 100%);
+    padding: 10px 40px;
+    border-radius: 8px;
+  }
+
+  .columna-hercules {
+    height: 110px;             /* mitades son altas y estrechas → más altura para que se vean bien */
+    width: auto;
+    filter: drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.7));
+  }
+
+  .texto-imperio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    font-family: 'Cinzel', serif;
+  }
+
+  .texto-imperio .sub-oro {
+    font-size: 14px;
+    letter-spacing: 7px;
+    color: #c8a84b;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    font-weight: 600;
+  }
+
+  .texto-imperio .principal-oro {
+    margin: -5px 0 0 0;
+    font-size: 34px;
+    letter-spacing: 4px;
+    font-weight: 700;
+    color: #ffffff;
+    background: linear-gradient(145deg, #ffffff 30%, #e6ca73 70%, #b8922f 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0px 3px 5px rgba(0, 0, 0, 0.9));
+  }
+
+  /* ── Dropdown virreinatos (derecha arriba) ──────────────────────── */
+  .dropdown {
+    position: absolute;
+    top: 24px; right: 24px;
+    z-index: 110;
+    width: 240px;
+    user-select: none;
+  }
+  .dropdown-toggle {
+    background: rgba(8, 6, 2, 0.92);
+    border: 1px solid rgba(200, 168, 75, 0.4);
+    border-left: 3px solid #c8a84b;
+    color: #e8d8a0;
+    font-family: 'Cinzel', serif;
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    padding: 11px 14px;
+    border-radius: 3px;
+    backdrop-filter: blur(8px);
+    width: 100%;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.15s;
+  }
+  .dropdown-toggle:hover {
+    background: rgba(20, 14, 4, 0.95);
+    border-color: rgba(200, 168, 75, 0.7);
+  }
+  .dropdown-toggle .icon { color: #c8a84b; font-size: 1.1rem; }
+  .dropdown-toggle .text { flex: 1; }
+  .dropdown-toggle .count {
+    font-family: 'Crimson Text', serif;
+    font-size: 0.7rem; color: #8a7a5a; font-style: italic;
+  }
+  .dropdown-toggle .arrow {
+    color: #8a7a5a; transition: transform 0.25s; font-size: 0.75rem;
+  }
+  .dropdown.open .dropdown-toggle .arrow { transform: rotate(180deg); color: #c8a84b; }
+
+  .dropdown-panel {
+    margin-top: 6px;
+    background: rgba(8, 6, 2, 0.95);
+    border: 1px solid rgba(200, 168, 75, 0.3);
+    border-left: 3px solid #c8a84b;
+    border-radius: 3px;
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+    max-height: 0; opacity: 0;
+    transition: max-height 0.3s ease, opacity 0.2s ease, margin-top 0.3s ease;
+    pointer-events: none;
+  }
+  .dropdown.open .dropdown-panel {
+    max-height: 500px; opacity: 1; pointer-events: auto;
+  }
+  .dropdown-header {
+    padding: 10px 14px 6px;
+    font-family: 'Cinzel', serif; font-size: 0.66rem;
+    letter-spacing: 0.16em; text-transform: uppercase; color: #8a7a5a;
+    border-bottom: 1px solid rgba(200, 168, 75, 0.12);
+  }
+  .dropdown-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 14px; cursor: pointer;
+    transition: background 0.12s;
+    font-family: 'Cinzel', serif; font-size: 0.78rem;
+    color: #b0a070; letter-spacing: 0.02em;
+  }
+  .dropdown-item:hover { background: rgba(200, 168, 75, 0.10); color: #e8d8a0; }
+  .dropdown-item.checked { color: #f0d985; }
+  .dropdown-checkbox {
+    width: 16px; height: 16px; border-radius: 2px;
+    border: 1.5px solid rgba(200, 168, 75, 0.5);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent;
+    transition: all 0.15s;
+  }
+  .dropdown-item.checked .dropdown-checkbox {
+    background: var(--swatch-color, #c8a84b);
+    border-color: var(--swatch-color, #c8a84b);
+    box-shadow: 0 0 8px var(--swatch-color, #c8a84b);
+  }
+  .dropdown-checkbox::after {
+    content: '✓'; color: #1a1408; font-weight: 800; font-size: 12px;
+    line-height: 1; opacity: 0; transition: opacity 0.15s;
+  }
+  .dropdown-item.checked .dropdown-checkbox::after { opacity: 1; }
+  .dropdown-item .item-text { flex: 1; }
+  .dropdown-item .item-count {
+    font-family: 'Crimson Text', serif; font-size: 0.66rem;
+    color: #6a5a3a; font-style: italic;
+  }
+  .dropdown-footer {
+    border-top: 1px solid rgba(200, 168, 75, 0.15);
+    padding: 6px 4px; display: flex; gap: 4px;
+  }
+  .footer-btn {
+    flex: 1; background: transparent; border: none;
+    color: #8a7a5a; font-family: 'Crimson Text', serif;
+    font-size: 0.74rem; cursor: pointer; padding: 6px;
+    border-radius: 2px; transition: all 0.15s;
+  }
+  .footer-btn:hover { color: #c8a84b; background: rgba(200, 168, 75, 0.08); }
+
+  /* ── Layer-menu (capas adicionales, debajo del dropdown) ────────── */
+  #layer-menu {
+    position: absolute;
+    top: 84px;  /* debajo del dropdown */
+    right: 24px;
+    width: 240px;
+    background: rgba(8, 6, 2, 0.92);
+    border-left: 3px solid #c8a84b;
+    border-radius: 3px;
+    padding: 10px 0 6px;
+    backdrop-filter: blur(8px);
+    z-index: 100;  /* menor que el dropdown para que no lo solape */
+    user-select: none;
+  }
+  .layer-menu-header {
+    padding: 4px 14px 8px;
+    font-family: 'Cinzel', serif;
+    font-size: 0.66rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #8a7a5a;
+    border-bottom: 1px solid rgba(200, 168, 75, 0.12);
+    margin-bottom: 4px;
+  }
+  .layer-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 8px 14px; cursor: pointer;
+    transition: background 0.12s;
+    font-family: 'Cinzel', serif;
+    font-size: 0.76rem;
+    color: #b0a070;
+    letter-spacing: 0.02em;
+  }
+  .layer-item:hover { background: rgba(200, 168, 75, 0.08); color: #e8d8a0; }
+  .layer-item.active { color: #f0d985; }
+  .layer-item .layer-marker {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(200, 168, 75, 0.5);
+    flex-shrink: 0;
+    background: var(--marker-color, #888);
+    box-shadow: 0 0 6px var(--marker-color, #888);
+    transition: all 0.15s;
+    opacity: 0.55;
+  }
+  .layer-item.active .layer-marker {
+    opacity: 1;
+    box-shadow: 0 0 10px var(--marker-color, #888);
+  }
+  /* Para rutas usar línea en lugar de círculo */
+  .layer-item.line-marker .layer-marker {
+    border-radius: 1px;
+    height: 4px;
+    width: 18px;
+  }
+  /* Iconos con imagen (logos históricos): círculo grabado en pergamino */
+  .layer-item.image-marker .layer-marker {
+    width: 32px;
+    height: 32px;
+    border: 1.5px solid rgba(200, 168, 75, 0.45);
+    background-color: rgba(20, 14, 4, 0.6);
+    background-image: var(--marker-image);
+    background-size: 230%;             /* zoom para centrar el medallón circular */
+    background-position: center 38%;
+    background-repeat: no-repeat;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.45),
+                inset 0 0 6px rgba(200, 168, 75, 0.15);
+    opacity: 0.7;
+    filter: saturate(0.85);
+  }
+  .layer-item.image-marker:hover .layer-marker {
+    opacity: 0.9;
+    border-color: rgba(200, 168, 75, 0.7);
+    transform: scale(1.05);
+  }
+  .layer-item.image-marker.active .layer-marker {
+    opacity: 1;
+    border-color: #c8a84b;
+    box-shadow: 0 0 12px rgba(200, 168, 75, 0.5),
+                inset 0 0 6px rgba(200, 168, 75, 0.3);
+    filter: saturate(1.1);
+  }
+  /* Estrella dorada para Capitales Virreinales */
+  .layer-item.star-marker .layer-marker {
+    width: 20px; height: 20px;
+    border: none; background: transparent; box-shadow: none;
+    position: relative;
+  }
+  .layer-item.star-marker .layer-marker::before {
+    content: '★';
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    color: #FFD700;
+    text-shadow: 0 0 6px rgba(255, 215, 0, 0.7),
+                 0 0 2px rgba(138, 96, 16, 0.9);
+    opacity: 0.7;
+    transition: all 0.15s;
+  }
+  .layer-item.star-marker.active .layer-marker::before {
+    opacity: 1;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.95),
+                 0 0 3px rgba(138, 96, 16, 1);
+    transform: scale(1.1);
+  }
+  .layer-item .layer-name { flex: 1; }
+  .layer-item .layer-count {
+    font-family: 'Crimson Text', serif;
+    font-size: 0.66rem;
+    color: #6a5a3a;
+    font-style: italic;
+  }
+  .layer-item.loading {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .layer-item.loading::after {
+    content: '...';
+    color: #8a7a5a;
+    margin-left: 4px;
+  }
+
+  /* ── Panel "Hitos y Rutas Históricas" (derecha, bajo el layer-menu) ── */
+  #events-panel {
+    position: absolute;
+    top: 360px;          /* debajo del layer-menu (con 5 items: rutas/capitales/uni/hosp/ciudades) */
+    right: 24px;
+    width: 240px;
+    background: rgba(8, 6, 2, 0.92);
+    border-left: 3px solid #c8a84b;
+    border-radius: 3px;
+    padding: 10px 0 8px;
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    user-select: none;
+    font-family: 'Crimson Text', Georgia, serif;
+  }
+  .events-header {
+    padding: 4px 14px 8px;
+    font-family: 'Cinzel', serif;
+    font-size: 0.66rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #8a7a5a;
+    border-bottom: 1px solid rgba(200, 168, 75, 0.12);
+    margin-bottom: 6px;
+  }
+  .event-btn {
+    display: block;
+    width: calc(100% - 16px);
+    margin: 4px 8px;
+    padding: 10px 12px;
+    background: rgba(20, 14, 4, 0.6);
+    border: 1px solid rgba(200, 168, 75, 0.25);
+    border-left: 3px solid #c8a84b;
+    color: #e8d8a0;
+    font-family: 'Crimson Text', Georgia, serif;
+    font-size: 0.84rem;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.18s ease;
+    line-height: 1.3;
+  }
+  .event-btn:hover {
+    background: rgba(40, 28, 8, 0.85);
+    border-color: rgba(200, 168, 75, 0.7);
+    color: #f0d985;
+    transform: translateX(-2px);
+    box-shadow: -3px 3px 8px rgba(0,0,0,0.45);
+  }
+  .event-btn.active {
+    background: rgba(60, 42, 14, 0.95);
+    color: #f0d985;
+    border-color: rgba(200, 168, 75, 0.85);
+    box-shadow: 0 0 0 1px rgba(200, 168, 75, 0.4);
+  }
+  .event-btn .event-icon {
+    font-size: 1.1rem;
+    margin-right: 6px;
+  }
+  .event-btn .event-sub {
+    display: block;
+    font-size: 0.7rem;
+    color: #8a7a5a;
+    font-style: italic;
+    margin-top: 2px;
+  }
+  .event-btn:hover .event-sub { color: #a08a5e; }
+
+  .event-close-btn {
+    display: none;        /* solo aparece cuando hay evento activo */
+    width: calc(100% - 16px);
+    margin: 4px 8px 0;
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid rgba(200, 168, 75, 0.3);
+    color: #8a7a5a;
+    font-family: 'Crimson Text', Georgia, serif;
+    font-size: 0.74rem;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+  }
+  .event-close-btn:hover {
+    background: rgba(200, 168, 75, 0.10);
+    color: #c8a84b;
+    border-color: rgba(200, 168, 75, 0.6);
+  }
+  .event-close-btn.visible { display: block; }
+
+  /* ── Pista de controles ───────────────────────────────────────────── */
+  .controls-hint {
+    position: absolute; bottom: 24px; right: 24px;
+    background: rgba(8, 6, 2, 0.85);
+    border-left: 2px solid #8a7a5a;
+    padding: 10px 14px; color: #9a8060;
+    font-size: 0.72rem; z-index: 100; border-radius: 4px;
+    line-height: 1.5; pointer-events: none;
+  }
+  .controls-hint b { color: #c8a84b; font-weight: 600; }
+
+  /* ── Tooltip ──────────────────────────────────────────────────────── */
+  #tooltip {
+    position: absolute; display: none;
+    background: rgba(8, 6, 2, 0.95);
+    border: 1px solid var(--accent, #c8a84b);
+    border-left: 3px solid var(--accent, #c8a84b);
+    border-radius: 3px;
+    padding: 12px 38px 12px 16px;  /* extra padding-right para el botón × */
+    color: #e8d8a0;
+    font-family: 'Crimson Text', Georgia, serif;
+    pointer-events: auto;          /* tooltip persistente: capturar eventos */
+    max-width: 320px; z-index: 200;
+    backdrop-filter: blur(4px);
+  }
+  #tooltip-close {
+    position: absolute;
+    top: 6px; right: 8px;
+    width: 22px; height: 22px;
+    background: transparent;
+    border: 1px solid rgba(200, 168, 75, 0.3);
+    color: #c8a84b;
+    font-size: 16px; font-family: 'Cinzel', serif;
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1; padding: 0;
+    transition: all 0.15s;
+  }
+  #tooltip-close:hover {
+    background: rgba(200, 168, 75, 0.15);
+    color: #f0d985;
+    border-color: rgba(200, 168, 75, 0.6);
+  }
+  #tooltip .name {
+    font-family: 'Cinzel', serif; color: var(--accent, #c8a84b);
+    font-size: 1rem; font-weight: 600; margin-bottom: 4px;
+  }
+  #tooltip .meta {
+    font-size: 0.68rem; color: #8a7a5a; letter-spacing: 0.06em;
+    text-transform: uppercase; margin-bottom: 8px;
+    padding-bottom: 7px; border-bottom: 1px solid rgba(200, 168, 75, 0.2);
+  }
+  #tooltip .meta:empty { display: none; }
+  #tooltip .desc { font-size: 0.84rem; line-height: 1.55; color: #a89070; }
+  #tooltip .desc:empty { display: none; }
+
+  /* ── Loader ───────────────────────────────────────────────────────── */
+  #loader {
+    position: absolute; inset: 0; background: #000;
+    display: flex; align-items: center; justify-content: center;
+    color: #c8a84b; font-family: 'Cinzel', serif;
+    font-size: 1.1rem; letter-spacing: 0.1em; z-index: 1000;
+    transition: opacity 0.6s;
+  }
+  #loader.hide { opacity: 0; pointer-events: none; }
+  #loader .dot { display: inline-block; animation: dotpulse 1.4s infinite; }
+  #loader .dot:nth-child(2) { animation-delay: 0.2s; }
+  #loader .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dotpulse { 0%, 60%, 100% { opacity: 0.2; } 30% { opacity: 1; } }
+</style>
+
+<script>
+  window.CESIUM_BASE_URL = 'https://cesium.com/downloads/cesiumjs/releases/1.116/Build/Cesium/';
+</script>
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.116/Build/Cesium/Cesium.js"></script>
+</head>
+<body>
+
+<div id="loader">
+  Cargando el Imperio<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+</div>
+
+<div id="cesiumContainer"></div>
+
+<!-- Bandera del Imperio (1785-1873) ondeando con canvas 2D -->
+<canvas id="flag-canvas" width="180" height="130"></canvas>
+
+<!-- Encabezado imperial central con columnas de Hércules y lema Plus Ultra -->
+<div id="titulo-imperio-container">
+  <img src="columna_izquierda.png" class="columna-hercules" alt="Columna Izquierda (PLVS)">
+  <div class="texto-imperio">
+    <span class="sub-oro">IMPERIO</span>
+    <h1 class="principal-oro">ESPAÑOL</h1>
+  </div>
+  <img src="columna_derecha.png" class="columna-hercules" alt="Columna Derecha (VLTRA)">
+</div>
+
+<!-- Menú dropdown de virreinatos -->
+<div class="dropdown" id="dropdown">
+  <button class="dropdown-toggle" id="dropdown-toggle">
+    <span class="icon">⚏</span>
+    <span class="text">Virreinatos</span>
+    <span class="count" id="dropdown-count">todos</span>
+    <span class="arrow">▾</span>
+  </button>
+  <div class="dropdown-panel">
+    <div class="dropdown-header">Filtrar por región</div>
+    <div id="dropdown-items"></div>
+    <div class="dropdown-footer">
+      <button class="footer-btn" id="btn-all">Todos</button>
+      <button class="footer-btn" id="btn-none">Ninguno</button>
+    </div>
+  </div>
+</div>
+
+<!-- Menú de Capas adicionales -->
+<div id="layer-menu">
+  <div class="layer-menu-header">Capas Adicionales</div>
+
+  <div class="layer-item line-marker" data-layer="rutas" style="--marker-color:#097138">
+    <div class="layer-marker"></div>
+    <div class="layer-name">Rutas de Expedición</div>
+    <div class="layer-count" data-count="rutas">…</div>
+  </div>
+
+  <div class="layer-item star-marker" data-layer="capitales" style="--marker-color:#FFD700">
+    <div class="layer-marker"></div>
+    <div class="layer-name">Capitales Virreinales</div>
+    <div class="layer-count" data-count="capitales">5</div>
+  </div>
+
+  <div class="layer-item image-marker" data-layer="universidades"
+       style="--marker-color:#6b4ca1; --marker-image: url('logo_universidades.png')">
+    <div class="layer-marker"></div>
+    <div class="layer-name">Universidades</div>
+    <div class="layer-count" data-count="universidades">…</div>
+  </div>
+
+  <div class="layer-item image-marker" data-layer="hospitales"
+       style="--marker-color:#e37b87; --marker-image: url('logo_hospitales.png')">
+    <div class="layer-marker"></div>
+    <div class="layer-name">Hospitales</div>
+    <div class="layer-count" data-count="hospitales">…</div>
+  </div>
+
+  <div class="layer-item image-marker" data-layer="ciudades"
+       style="--marker-color:#3b6bbb; --marker-image: url('logo_ciudades.png')">
+    <div class="layer-marker"></div>
+    <div class="layer-name">Ciudades fundadas</div>
+    <div class="layer-count" data-count="ciudades">…</div>
+  </div>
+</div>
+
+<!-- Panel "Hitos y Rutas Históricas" -->
+<div id="events-panel">
+  <div class="events-header">Hitos y Rutas Históricas</div>
+
+  <button class="event-btn" id="btn-galeon">
+    <span class="event-icon">🚢</span>Ruta del Galeón de Manila
+    <span class="event-sub">Acapulco ⇆ Manila — Tornaviaje por Japón</span>
+  </button>
+
+  <button class="event-close-btn" id="btn-close-event">✕ Cerrar evento</button>
+</div>
+
+<div class="controls-hint">
+  <b>⚏ Menú</b> · filtrar virreinatos<br>
+  <b>Capas</b> · activar/desactivar<br>
+  <b>Arrastrar</b> · rotar · <b>Rueda</b> · zoom<br>
+  <b>Clic</b> · ver info
+</div>
+
+<div id="tooltip">
+  <button id="tooltip-close" title="Cerrar">×</button>
+  <div class="name"></div>
+  <div class="meta"></div>
+  <div class="desc"></div>
+</div>
+
+<script>
+// ─── METADATA DE LAS 5 REGIONES ──────────────────────────────────────────
+const REGIONS = [
+  { region: "Nueva España",     label: "Nueva España",        color: "#d4a017" },
+  { region: "Nueva Granada",    label: "Nueva Granada",       color: "#8a5fa0" },
+  { region: "Perú",             label: "Perú",                color: "#c44848" },
+  { region: "Río de la Plata",  label: "Río de la Plata",     color: "#4880b8" },
+  { region: "Península",        label: "Península",           color: "#98681c" }
+];
+
+const HOME_VIEW = { lng: -50, lat: 15, alt: 18000000 };
+
+// ─── METADATA DE LAS 4 CAPAS ADICIONALES ─────────────────────────────────
+const LAYERS = {
+  rutas: {
+    file:   'data/rutas.geojson',
+    label:  'Rutas de Expedición',
+    color:  '#097138',
+    pixelSize: 3
+  },
+  universidades: {
+    file:   'data/universidades.geojson',
+    label:  'Universidades',
+    color:  '#6b4ca1',
+    pixelSize: 8,
+    // === BILLBOARD + LABEL ===
+    billboardImage: 'pin_universidades.png',  // pin pre-recortado (medallón sobre fondo transparente)
+    billboardScale: 0.2,                      // tamaño elegante (200px × 0.2 = 40px)
+    showLabel: true,
+    labelField: 'title',
+    labelMaxDistance: 5000000                 // LOD: nombre visible con la cámara a < 5.000 km
+  },
+  hospitales: {
+    file:   'data/hospitales.geojson',
+    label:  'Hospitales',
+    color:  '#e37b87',
+    pixelSize: 6,
+    // === BILLBOARD + LABEL ===
+    billboardImage: 'pin_hospitales.png',
+    billboardScale: 0.2,
+    showLabel: true,
+    labelField: 'title',
+    labelMaxDistance: 1500000                 // LOD: nombre visible con la cámara a < 1.500 km
+  },
+  ciudades: {
+    file:      'data/ciudades_fundadas.geojson',        // archivo original (formato Wikimedia con wrapper "data")
+    mergeWith: 'data/ciudades_principales.geojson',     // se fusiona con el principal (21 ciudades destacadas de 1794)
+    label:     'Ciudades fundadas',
+    color:     '#5a8fe8',
+    pixelSize: 8,
+    // === BILLBOARD + LABEL ===
+    billboardImage: 'pin_ciudades.png',
+    billboardScale: 0.2,
+    showLabel: true,
+    labelField: 'title',
+    labelMaxDistance: 1500000                 // LOD: nombre visible con la cámara a < 1.500 km
+  }
+};
+
+// ─── CESIUM INIT ─────────────────────────────────────────────────────────
+const esriProvider = new Cesium.UrlTemplateImageryProvider({
+  url: 'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  credit: new Cesium.Credit('Esri', false),
+  maximumLevel: 18
+});
+
+const viewer = new Cesium.Viewer('cesiumContainer', {
+  baseLayer: new Cesium.ImageryLayer(esriProvider),
+  baseLayerPicker: false, geocoder: false, homeButton: false,
+  sceneModePicker: false, navigationHelpButton: false,
+  animation: false, timeline: false, fullscreenButton: false,
+  infoBox: false, selectionIndicator: false
+});
+if (viewer._cesiumWidget._creditContainer) {
+  viewer._cesiumWidget._creditContainer.style.display = "none";
+}
+
+// ─── CULLING POR EL PROPIO ELIPSOIDE DEL GLOBO ──────────────────────────
+// Con depthTestAgainstTerrain = false:
+//   · La malla del terreno NO oculta los pines (no se hunden en montañas)
+//   · El elipsoide sólido del globo SÍ los oculta cuando giramos al lado
+//     opuesto del planeta (culling natural por curvatura)
+// Anclaje: posición absoluta sobre la superficie + verticalOrigin: BOTTOM.
+// Sin eyeOffset ni disableDepthTestDistance.
+viewer.scene.globe.depthTestAgainstTerrain = false;
+
+// ─── ALTURA REAL DE LOS MARCADORES ──────────────────────────────────────
+// No se usa HeightReference.CLAMP_TO_GROUND: Cesium lo resuelve
+// muestreando la MALLA visible del globo, que a poco zoom es una cuerda
+// por DEBAJO del elipsoide (medido: hasta −43 km). Los pines quedaban
+// hundidos y "saltaban" al refinarse los tiles. Además, cada letra de
+// cada label se muestreaba por separado → congelones de ~2,6 s.
+//
+// En su lugar, cada marcador se coloca en posición ABSOLUTA sobre la
+// superficie real del terreno, con la misma función de altura que usa
+// el terreno, la exageración vertical de la escena y un pequeño offset.
+// Proyección: todo (terreno, polígonos, pines, galeón) usa WGS84 lng/lat.
+const MARKER_OFFSET_M = 5;   // margen vertical para que nada atraviese la superficie
+
+function terrainHeight(lng, lat) {
+  // Sin terrain provider real (EllipsoidTerrainProvider) la superficie
+  // es el propio elipsoide: altura 0 en todo el globo, incluido el mar.
+  // Si algún día se añade un terreno real, sustituir esto por alturas
+  // precalculadas con Cesium.sampleTerrainMostDetailed().
+  if (viewer.terrainProvider instanceof Cesium.EllipsoidTerrainProvider) return 0;
+  const h = viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(lng, lat));
+  return h !== undefined ? h : 0;
+}
+
+function surfacePosition(lng, lat, offset = MARKER_OFFSET_M) {
+  const exaggeration = viewer.scene.verticalExaggeration ?? 1;
+  const h = terrainHeight(lng, lat) * exaggeration + offset;
+  return Cesium.Cartesian3.fromDegrees(lng, lat, h);
+}
+
+viewer.camera.setView({
+  destination: Cesium.Cartesian3.fromDegrees(HOME_VIEW.lng, HOME_VIEW.lat, HOME_VIEW.alt),
+  orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 }
+});
+
+// ─── ESTADO ──────────────────────────────────────────────────────────────
+const regionEntities = new Map();
+const selectedFilters = new Set();
+const layerDataSources = {};  // layerKey -> Cesium.GeoJsonDataSource
+
+// ═══════════════════════════════════════════════════════════════════════
+// CAPAS DE PINES (universidades, hospitales, ciudades, capitales)
+// Esta constante se usa en updateVisibility() para filtrarlas por
+// virreinato, y en los handlers de moveStart/moveEnd para ocultarlas
+// durante el movimiento de cámara.
+// ═══════════════════════════════════════════════════════════════════════
+const POINT_LAYER_KEYS = ['universidades', 'hospitales', 'ciudades', 'capitales'];
+
+// ─── SISTEMA "OCULTAR AL MOVER" (estilo Google Earth) ───────────────────
+// Los pines + labels desaparecen mientras se mueve la cámara y reaparecen
+// al soltar. Elimina por completo la sensación de baile.
+//
+// Rendimiento: NO se toca ds.show. Apagar un DataSource hace que Cesium
+// devuelva sus billboards/labels al pool y, al encenderlo, reconstruya
+// el glifo de cada letra de cada label (~1.400 labels). En su lugar,
+// todos los pines comparten un distanceDisplayCondition dinámico que
+// los oculta en la GPU sin destruir nada. Los objetos DDC se crean una
+// sola vez: el callback no asigna memoria en cada frame.
+let cameraMoveTimeout = null;
+let cameraMoving = false;
+
+const DDC_HIDDEN = new Cesium.DistanceDisplayCondition(0, 1);   // invisible (nadie está a <1 m)
+const DDC_ALWAYS = new Cesium.DistanceDisplayCondition(0, Number.MAX_VALUE);
+const ddcCache = new Map();   // labelMaxDistance -> DistanceDisplayCondition compartido
+
+// Devuelve una propiedad compartida: oculto mientras la cámara se mueve,
+// y si no, visible hasta `maxDistance` metros de la cámara (LOD de labels).
+function hideOnMoveDDC(maxDistance = Number.MAX_VALUE) {
+  if (!ddcCache.has(maxDistance)) {
+    const visible = maxDistance === Number.MAX_VALUE
+      ? DDC_ALWAYS
+      : new Cesium.DistanceDisplayCondition(0, maxDistance);
+    ddcCache.set(maxDistance, new Cesium.CallbackProperty(
+      () => cameraMoving ? DDC_HIDDEN : visible, false));
+  }
+  return ddcCache.get(maxDistance);
+}
+
+viewer.scene.camera.moveStart.addEventListener(() => {
+  clearTimeout(cameraMoveTimeout);
+  cameraMoving = true;
+});
+
+viewer.scene.camera.moveEnd.addEventListener(() => {
+  clearTimeout(cameraMoveTimeout);
+  cameraMoveTimeout = setTimeout(() => {
+    cameraMoving = false;
+    viewer.scene.requestRender();
+  }, 180);
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// SISTEMA POINT-IN-POLYGON PARA FILTRAR PINES POR VIRREINATO
+// Cada universidad/hospital/ciudad se vincula automáticamente al
+// virreinato que la contiene geográficamente. Cuando el usuario filtra
+// virreinatos en el dropdown, los pines fuera de esos virreinatos
+// se ocultan también.
+// ═══════════════════════════════════════════════════════════════════════
+const regionPolygons = [];   // { region, ring: [[lng,lat],...], bbox: {...} }
+
+function pointInPolygon(lng, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    if (((yi > lat) !== (yj > lat)) &&
+        (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function computeBbox(ring) {
+  let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  for (const c of ring) {
+    if (c[0] < minLng) minLng = c[0];
+    if (c[0] > maxLng) maxLng = c[0];
+    if (c[1] < minLat) minLat = c[1];
+    if (c[1] > maxLat) maxLat = c[1];
+  }
+  return { minLng, maxLng, minLat, maxLat };
+}
+
+function findRegionForPoint(lng, lat) {
+  for (const rp of regionPolygons) {
+    const b = rp.bbox;
+    if (lng < b.minLng || lng > b.maxLng) continue;
+    if (lat < b.minLat || lat > b.maxLat) continue;
+    if (pointInPolygon(lng, lat, rp.ring)) return rp.region;
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PASO 1: CARGAR EL GEOJSON DE VIRREINATOS
+// ═══════════════════════════════════════════════════════════════════════
+fetch('data/imperio-espanol-1794.geojson')
+  .then(r => { if (!r.ok) throw new Error('GeoJSON no encontrado'); return r.json(); })
+  .then(geojson => {
+    geojson.features.forEach(feature => {
+      const props = feature.properties;
+      const region = props.region;
+      const meta = REGIONS.find(v => v.region === region);
+      const colorStr = meta?.color || props.color || '#888';
+
+      const fillColor = Cesium.Color.fromCssColorString(colorStr).withAlpha(0.45);
+      const goldOutline = Cesium.Color.fromCssColorString('#FFD700');
+
+      const geom = feature.geometry;
+      const polygons = geom.type === 'MultiPolygon' ? geom.coordinates : [geom.coordinates];
+
+      const refs = { polygons: [], polylines: [] };
+
+      polygons.forEach(polygon => {
+        const ring = polygon[0];
+        if (!ring || ring.length < 3) return;
+
+        // ── REGISTRAR EL ANILLO PARA POINT-IN-POLYGON LOOKUP ──
+        regionPolygons.push({
+          region: region,
+          ring:   ring,
+          bbox:   computeBbox(ring)
+        });
+
+        const flat = ring.flat();
+        const positions = Cesium.Cartesian3.fromDegreesArray(flat);
+
+        const polyEnt = viewer.entities.add({
+          name: props.name,
+          polygon: {
+            hierarchy: positions,
+            material: fillColor,
+            classificationType: Cesium.ClassificationType.TERRAIN,
+            outline: false
+          },
+          properties: props
+        });
+        refs.polygons.push(polyEnt);
+
+        const lineEnt = viewer.entities.add({
+          polyline: {
+            positions: positions,
+            width: 1.5,
+            material: goldOutline,
+            clampToGround: true
+          }
+        });
+        refs.polylines.push(lineEnt);
+      });
+
+      if (!regionEntities.has(region)) regionEntities.set(region, []);
+      regionEntities.get(region).push(refs);
+    });
+
+    buildDropdown();
+    updateVisibility();
+
+    // ════════════════════════════════════════════════════════════════════
+    // PASO 2: CARGAR LAS 4 CAPAS ADICIONALES (ocultas por defecto)
+    // ════════════════════════════════════════════════════════════════════
+    return loadAllLayers();
+  })
+  .then(() => {
+    setupLayerMenu();
+    initCapitales();              // añadir las 5 capitales virreinales como capa toggleable
+    updateVisibility();           // aplicar filtro de virreinatos a los pines recién cargados
+    document.getElementById('loader').classList.add('hide');
+  })
+  .catch(err => {
+    console.error(err);
+    document.getElementById('loader').innerHTML =
+      'Error: ' + err.message + '<br><br>¿Lo abres desde un servidor HTTP?<br>(Ver README.md)';
+  });
+
+// ═══════════════════════════════════════════════════════════════════════
+// CARGA Y ESTILIZADO DE CAPAS ADICIONALES
+// ═══════════════════════════════════════════════════════════════════════
+
+function loadAllLayers() {
+  // ═══════════════════════════════════════════════════════════════════════
+  // ESTRATEGIA: posición absoluta sobre la superficie real.
+  //
+  //  · surfacePosition(lng, lat)         → altura del terreno + offset (ver arriba)
+  //  · verticalOrigin:  BOTTOM           → la base toca el suelo
+  //  · distanceDisplayCondition          → ocultar al mover + LOD de labels
+  //  · Cesium agrupa todos los billboards en una BillboardCollection
+  //    (un draw call, una textura por imagen): el equivalente a instancing
+  //  · depthTestAgainstTerrain = false   → la malla no se traga el pin
+  //  · El globo elipsoide sí oculta los pines del lado opuesto al rotar
+  //
+  // Sin trucos. Sin eyeOffset. Sin disableDepthTestDistance.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const fetchGeoJSON = url =>
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status} en ${url}`); return r.json(); })
+      .then(raw => (raw && raw.data && raw.data.type === 'FeatureCollection') ? raw.data : raw);
+
+  return Promise.all(
+    Object.entries(LAYERS).map(([key, conf]) => {
+      const loads = [fetchGeoJSON(conf.file)];
+      if (conf.mergeWith) loads.push(fetchGeoJSON(conf.mergeWith));
+
+      return Promise.all(loads)
+        .then(geojsons => {
+          const features = geojsons.flatMap(g => g.features || []);
+
+          // CustomDataSource vacío: nada se crea sin nuestro permiso
+          const ds = new Cesium.CustomDataSource(key);
+
+          // Objetos compartidos por todos los pines de la capa (no uno por pin)
+          const billboardDDC = hideOnMoveDDC();
+          const labelDDC     = hideOnMoveDDC(conf.labelMaxDistance);
+          const labelFill    = Cesium.Color.WHITE;
+          const labelOutline = Cesium.Color.BLACK;
+          const labelOffset  = new Cesium.Cartesian2(0, -35);
+
+          features.forEach(feat => {
+            const geom  = feat.geometry;
+            const props = feat.properties || {};
+
+            // ─── POINT → billboard absoluto + label ───────────────────
+            if (geom.type === 'Point' && conf.billboardImage) {
+              const lng = geom.coordinates[0];
+              const lat = geom.coordinates[1];
+
+              // Calcular en qué virreinato cae este punto
+              const pointRegion = findRegionForPoint(lng, lat);
+
+              const entityCfg = {
+                position: surfacePosition(lng, lat),
+                billboard: {
+                  image: conf.billboardImage,      // misma URL → una sola textura en el atlas
+                  scale: conf.billboardScale,
+                  verticalOrigin:  Cesium.VerticalOrigin.BOTTOM,
+                  distanceDisplayCondition: billboardDDC
+                },
+                properties: { ...props, region: pointRegion }
+              };
+
+              if (conf.showLabel && props[conf.labelField]) {
+                entityCfg.label = {
+                  text: props[conf.labelField],
+                  font: '14px "Crimson Text", serif',
+                  fillColor:    labelFill,
+                  outlineColor: labelOutline,
+                  outlineWidth: 2,
+                  style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                  verticalOrigin:  Cesium.VerticalOrigin.BOTTOM,
+                  pixelOffset: labelOffset,
+                  distanceDisplayCondition: labelDDC
+                };
+              }
+
+              ds.entities.add(entityCfg);
+            }
+            // ─── LINESTRING → polyline (rutas) ────────────────────────
+            else if (geom.type === 'LineString') {
+              const flat = [];
+              for (const c of geom.coordinates) { flat.push(c[0], c[1]); }
+              const positions = Cesium.Cartesian3.fromDegreesArray(flat);
+              const stroke = props.stroke || conf.color;
+
+              ds.entities.add({
+                polyline: {
+                  positions: positions,
+                  width: 2.5,
+                  material: Cesium.Color.fromCssColorString(stroke).withAlpha(0.85),
+                  clampToGround: true
+                },
+                properties: props
+              });
+            }
+          });
+
+          ds.show = false;
+          viewer.dataSources.add(ds);
+          layerDataSources[key] = ds;
+
+          const countEl = document.querySelector(`[data-count="${key}"]`);
+          if (countEl) countEl.textContent = ds.entities.values.length;
+
+          console.log(`✓ Capa "${key}": ${ds.entities.values.length} entidades`);
+        })
+        .catch(err => {
+          console.error(`Error cargando ${conf.file}:`, err);
+          const countEl = document.querySelector(`[data-count="${key}"]`);
+          if (countEl) countEl.textContent = '✗';
+        });
+    })
+  );
+}
+
+function setupLayerMenu() {
+  document.querySelectorAll('.layer-item[data-layer]').forEach(item => {
+    item.addEventListener('click', () => {
+      const key = item.dataset.layer;
+      const ds = layerDataSources[key];
+      if (!ds) return;
+      ds.show = !ds.show;
+      item.classList.toggle('active', ds.show);
+    });
+  });
+}
+
+// ─── LÓGICA DE VISIBILIDAD POR VIRREINATOS ──────────────────────────────
+function updateVisibility() {
+  const isNoneMode = selectedFilters.has('__NONE__');
+  const showAll = !isNoneMode && selectedFilters.size === 0;
+
+  // ── 1) Polígonos + polilíneas de virreinatos ──
+  regionEntities.forEach((featuresArr, regionName) => {
+    let visible;
+    if (isNoneMode) visible = false;
+    else if (showAll) visible = true;
+    else visible = selectedFilters.has(regionName);
+
+    featuresArr.forEach(refs => {
+      refs.polygons.forEach(e => e.show = visible);
+      refs.polylines.forEach(e => e.show = visible);
+    });
+  });
+
+  // ── 2) Pines de las capas de puntos: filtrar por su region calculada ──
+  POINT_LAYER_KEYS.forEach(key => {
+    const ds = layerDataSources[key];
+    if (!ds) return;
+    ds.entities.values.forEach(entity => {
+      // Leer solo "region" (getValue() copiaría todas las propiedades de cada pin)
+      if (!entity.properties || !entity.properties.hasProperty('region')) return;
+
+      const r = entity.properties.region.getValue();
+      let visible;
+      if (isNoneMode) visible = false;
+      else if (showAll) visible = true;
+      else visible = r !== null && selectedFilters.has(r);
+
+      entity.show = visible;
+    });
+  });
+
+  updateDropdownUI();
+}
+
+function toggleFilter(regionName) {
+  if (selectedFilters.has('__NONE__')) selectedFilters.delete('__NONE__');
+  if (selectedFilters.has(regionName)) {
+    selectedFilters.delete(regionName);
+  } else {
+    selectedFilters.add(regionName);
+  }
+  updateVisibility();
+}
+
+function selectAll() {
+  selectedFilters.clear();
+  updateVisibility();
+}
+
+function selectNone() {
+  selectedFilters.clear();
+  selectedFilters.add('__NONE__');
+  updateVisibility();
+}
+
+// ─── CLICK MAP (tooltip persistente) ────────────────────────────────────
+const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+const tooltip = document.getElementById('tooltip');
+
+handler.setInputAction(movement => {
+  // drillPick devuelve TODAS las entidades bajo el cursor (no solo la 1ª).
+  // Así podemos priorizar un punto/ruta pequeño sobre el polígono grande que tiene debajo.
+  const allPicks = viewer.scene.drillPick(movement.position, 10);
+
+  let pointEntity   = null;   // punto o ruta (propiedad "title")
+  let polygonEntity = null;   // virreinato (propiedad "region")
+
+  for (const p of allPicks) {
+    if (!p || !p.id || !p.id.properties) continue;
+    const ent = p.id;
+    // Ignorar entidades de capas ocultas
+    if (ent.entityCollection && ent.entityCollection.owner && ent.entityCollection.owner.show === false) continue;
+    const props = ent.properties.getValue();
+    if (props.title  && !pointEntity)   pointEntity = ent;
+    if (props.region && !polygonEntity) polygonEntity = ent;
+  }
+
+  // Prioridad: punto/ruta primero, polígono después
+  const entity = pointEntity || polygonEntity;
+
+  if (!entity) {
+    tooltip.style.display = 'none';
+    return;
+  }
+
+  const props = entity.properties.getValue();
+
+  // ─── Caso 1: Capa adicional (punto o ruta con title) ───
+  if (props.title) {
+    let layerKey = null;
+    for (const [k, ds] of Object.entries(layerDataSources)) {
+      if (ds.entities.contains(entity)) { layerKey = k; break; }
+    }
+    const conf = layerKey ? LAYERS[layerKey] : null;
+    const color = conf?.color || '#c8a84b';
+
+    tooltip.style.setProperty('--accent', color);
+    tooltip.querySelector('.name').textContent = props.title;
+    tooltip.querySelector('.meta').textContent = conf ? conf.label : '';
+    tooltip.querySelector('.desc').textContent = props.description || '';
+  }
+  // ─── Caso 2: Virreinato (polígono con region) ───
+  else if (props.region) {
+    const meta = REGIONS.find(v => v.region === props.region);
+    const color = meta?.color || '#c8a84b';
+    tooltip.style.setProperty('--accent', color);
+    tooltip.querySelector('.name').textContent = props.name || '';
+    tooltip.querySelector('.meta').textContent = props.type || '';
+    tooltip.querySelector('.desc').textContent = props.desc || '';
+  } else {
+    tooltip.style.display = 'none';
+    return;
+  }
+
+  // Mostrar tooltip en posición del clic, manteniéndolo dentro de la pantalla
+  tooltip.style.display = 'block';
+  const tipW = 340;  // ancho aproximado del tooltip
+  const tipH = 180;  // alto aproximado
+  let x = movement.position.x + 18;
+  let y = movement.position.y - 10;
+  if (x + tipW > window.innerWidth)  x = movement.position.x - tipW - 8;
+  if (y + tipH > window.innerHeight) y = window.innerHeight - tipH - 12;
+  if (y < 10) y = 10;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top  = y + 'px';
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+// Cerrar tooltip con el botón ×
+const tooltipClose = document.getElementById('tooltip-close');
+if (tooltipClose) {
+  tooltipClose.addEventListener('click', e => {
+    e.stopPropagation();
+    tooltip.style.display = 'none';
+  });
+}
+
+// ─── CONSTRUIR DROPDOWN VIRREINATOS ─────────────────────────────────────
+function buildDropdown() {
+  const itemsContainer = document.getElementById('dropdown-items');
+  const toggleBtn = document.getElementById('dropdown-toggle');
+  const dropdown = document.getElementById('dropdown');
+
+  REGIONS.forEach(v => {
+    const featuresArr = regionEntities.get(v.region) || [];
+    const item = document.createElement('div');
+    item.className = 'dropdown-item';
+    item.dataset.region = v.region;
+    item.style.setProperty('--swatch-color', v.color);
+    item.innerHTML = `
+      <div class="dropdown-checkbox"></div>
+      <div class="item-text">${v.label}</div>
+      <div class="item-count">${featuresArr.length}</div>
+    `;
+    item.addEventListener('click', () => toggleFilter(v.region));
+    itemsContainer.appendChild(item);
+  });
+
+  toggleBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    dropdown.classList.toggle('open');
+  });
+  document.addEventListener('click', e => {
+    if (!dropdown.contains(e.target)) dropdown.classList.remove('open');
+  });
+  document.getElementById('btn-all').addEventListener('click', e => {
+    e.stopPropagation(); selectAll();
+  });
+  document.getElementById('btn-none').addEventListener('click', e => {
+    e.stopPropagation(); selectNone();
+  });
+}
+
+function updateDropdownUI() {
+  const isNoneMode = selectedFilters.has('__NONE__');
+  document.querySelectorAll('.dropdown-item').forEach(item => {
+    const region = item.dataset.region;
+    let isChecked;
+    if (isNoneMode) isChecked = false;
+    else if (selectedFilters.size === 0) isChecked = true;
+    else isChecked = selectedFilters.has(region);
+    item.classList.toggle('checked', isChecked);
+  });
+  const count = document.getElementById('dropdown-count');
+  if (isNoneMode) count.textContent = 'ninguno';
+  else if (selectedFilters.size === 0) count.textContent = 'todos';
+  else if (selectedFilters.size === 1) count.textContent = '1 seleccionado';
+  else count.textContent = `${selectedFilters.size} seleccionados`;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// CAPITALES VIRREINALES — 5 entidades destacadas con estrella dorada
+// ════════════════════════════════════════════════════════════════════════
+// Se cargan como un CustomDataSource independiente (no GeoJSON) para
+// poder usar marcadores especiales (billboards con estrella) y etiqueta.
+// Se inyectan en `layerDataSources.capitales` para que el toggle del menú
+// las controle igual que las demás capas.
+
+const CAPITALES = [
+  { name: 'Madrid',             lng:  -3.7038,  lat:  40.4168, desc: 'Capital Metropolitana del Imperio. Sede de la Corte de Carlos IV y centro neurálgico de la administración colonial.' },
+  { name: 'Ciudad de México',   lng: -99.13,  lat:  19.43, desc: 'Capital del Virreinato de Nueva España. La mayor ciudad del Imperio en América, sede del Virrey y de la Real Audiencia.' },
+  { name: 'Lima',               lng: -77.04,  lat: -12.05, desc: 'Capital del Virreinato del Perú, la "Ciudad de los Reyes" (1535). Sede del Tribunal del Consulado y de la Universidad de San Marcos.' },
+  { name: 'Santa Fe de Bogotá', lng: -74.08,  lat:   4.71, desc: 'Capital del Virreinato de Nueva Granada (restablecido en 1739). Sede de la Real Audiencia y del Arzobispado.' },
+  { name: 'Buenos Aires',       lng: -58.38,  lat: -34.61, desc: 'Capital del Virreinato del Río de la Plata (1776). Su crecimiento desplazó a Lima como eje del comercio austral.' }
+];
+
+// Generar dinámicamente la imagen de estrella dorada (data URL)
+function makeGoldStarDataURL(size = 48) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const x = c.getContext('2d');
+  const cx = size / 2, cy = size / 2;
+  const outerR = size * 0.46;
+  const innerR = outerR * 0.42;
+
+  // Resplandor dorado tras la estrella
+  const glow = x.createRadialGradient(cx, cy, 0, cx, cy, outerR * 1.3);
+  glow.addColorStop(0,   'rgba(255, 215, 0, 0.55)');
+  glow.addColorStop(0.5, 'rgba(255, 215, 0, 0.15)');
+  glow.addColorStop(1,   'rgba(255, 215, 0, 0)');
+  x.fillStyle = glow;
+  x.fillRect(0, 0, size, size);
+
+  // 5-pointed star
+  x.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = (Math.PI / 5) * i - Math.PI / 2;
+    const r = i % 2 === 0 ? outerR : innerR;
+    const px = cx + Math.cos(a) * r;
+    const py = cy + Math.sin(a) * r;
+    if (i === 0) x.moveTo(px, py); else x.lineTo(px, py);
+  }
+  x.closePath();
+
+  const grad = x.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0,   '#fff4b2');
+  grad.addColorStop(0.5, '#FFD700');
+  grad.addColorStop(1,   '#c89220');
+  x.fillStyle = grad;
+  x.fill();
+
+  x.lineWidth = 1.2;
+  x.strokeStyle = '#5e3f0a';
+  x.stroke();
+
+  return c.toDataURL();
+}
+
+function initCapitales() {
+  const starImg = makeGoldStarDataURL(56);
+  const ds = new Cesium.CustomDataSource('capitales');
+  const capDDC = hideOnMoveDDC();   // capitales: nombre siempre visible (sin LOD)
+
+  CAPITALES.forEach(c => {
+    const capRegion = findRegionForPoint(c.lng, c.lat);
+    ds.entities.add({
+      position: surfacePosition(c.lng, c.lat),
+      billboard: {
+        image: starImg,
+        scale: 0.5,
+        verticalOrigin:  Cesium.VerticalOrigin.BOTTOM,
+        distanceDisplayCondition: capDDC
+      },
+      label: {
+        text: c.name,
+        font: 'bold 14px "Crimson Text", serif',
+        fillColor:    Cesium.Color.fromCssColorString('#f0d985'),
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        verticalOrigin:  Cesium.VerticalOrigin.BOTTOM,
+        pixelOffset: new Cesium.Cartesian2(0, -35),
+        distanceDisplayCondition: capDDC
+      },
+      properties: {
+        title: c.name,
+        description: c.desc,
+        region: capRegion              // virreinato detectado
+      }
+    });
+  });
+
+  viewer.dataSources.add(ds);
+  ds.show = true;                        // visible por defecto: las capitales son hito principal
+  layerDataSources.capitales = ds;       // integrar con el sistema de toggle existente
+
+  // Marcar el item del menú como activo desde el inicio
+  const item = document.querySelector('.layer-item[data-layer="capitales"]');
+  if (item) item.classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// EVENTO HISTÓRICO: GALEÓN DE MANILA (Acapulco ⇆ Manila)
+// ════════════════════════════════════════════════════════════════════════
+// El galeón NO se crea al cargar el visor. Solo se instancia en
+// `viewer.entities` cuando el usuario pulsa el botón. Su movimiento se
+// anima con SampledPositionProperty + el reloj global de Cesium en bucle.
+// Pulsar "Cerrar evento" elimina la entidad y restaura el reloj.
+
+const MODEL_URI = 'galeon/scene.gltf';
+// ↑ glTF + .bin + carpeta textures/ en la carpeta `galeon/` junto al index.html.
+
+// Waypoints históricos del Galeón de Manila (ida + tornaviaje)
+const GALEON_ROUTE = [
+  // ─── IDA: Acapulco → Manila (vía trade winds, ~3 meses) ───
+  { name: 'Acapulco',                lng:  -99.88, lat: 16.87 },
+  { name: 'Pacífico SW de México',   lng: -110.0,  lat: 14.0  },
+  { name: 'Pacífico Central E',      lng: -130.0,  lat: 12.0  },
+  { name: 'Pacífico Central (sur Hawai)', lng: -155.0, lat: 11.0 },
+  { name: 'Línea de Cambio de Fecha',lng:  175.0,  lat: 11.0  },
+  { name: 'Pacífico Oeste',          lng:  160.0,  lat: 11.5  },
+  { name: 'Islas Marianas (Guam)',   lng:  144.8,  lat: 13.5  },
+  { name: 'Aprox. Filipinas',        lng:  130.0,  lat: 14.0  },
+  { name: 'Manila',                  lng:  120.97, lat: 14.6  },
+
+  // ─── TORNAVIAJE: Manila → Japón → California → Acapulco (~6 meses) ───
+  { name: 'Norte de Filipinas',      lng:  122.0,  lat: 22.0  },
+  { name: 'Mar de China Oriental',   lng:  130.0,  lat: 30.0  },
+  { name: 'Latitud de Japón',        lng:  140.0,  lat: 36.0  },
+  { name: 'Corriente del Kuroshio',  lng:  155.0,  lat: 38.0  },
+  { name: 'Pacífico Norte W',        lng:  175.0,  lat: 39.0  },
+  { name: 'Pacífico Norte Central',  lng: -170.0,  lat: 40.0  },
+  { name: 'Pacífico Norte E',        lng: -150.0,  lat: 39.0  },
+  { name: 'Aprox. costa de California', lng: -130.0, lat: 36.0 },
+  { name: 'Costa de California',     lng: -123.0,  lat: 35.0  },
+  { name: 'Sur de California',       lng: -114.0,  lat: 28.0  },
+  { name: 'Costa Pacífica Mexicana', lng: -106.0,  lat: 22.0  },
+  { name: 'Regreso a Acapulco',      lng:  -99.88, lat: 16.87 }
+];
+
+let galeonEntity = null;
+let galeonPath   = null;
+let savedClockState = null;   // backup del reloj para restaurar al cerrar
+
+function startGaleonEvent() {
+  if (galeonEntity) return;   // ya activo, no recrear
+
+  // ─── 1) Configurar el reloj de Cesium para la simulación en bucle ───
+  const start = Cesium.JulianDate.fromIso8601('1794-01-01T00:00:00Z');
+  const SEGMENT_SECONDS = 600;                              // duración de cada tramo (60 = total ~22 min con multiplier 60)
+  const totalSeconds = GALEON_ROUTE.length * SEGMENT_SECONDS;
+  const stop  = Cesium.JulianDate.addSeconds(start, totalSeconds, new Cesium.JulianDate());
+
+  // Guardar estado actual del reloj para restaurarlo al cerrar
+  savedClockState = {
+    startTime:   viewer.clock.startTime.clone(),
+    stopTime:    viewer.clock.stopTime.clone(),
+    currentTime: viewer.clock.currentTime.clone(),
+    clockRange:  viewer.clock.clockRange,
+    multiplier:  viewer.clock.multiplier,
+    shouldAnimate: viewer.clock.shouldAnimate
+  };
+
+  viewer.clock.startTime   = start.clone();
+  viewer.clock.stopTime    = stop.clone();
+  viewer.clock.currentTime = start.clone();
+  viewer.clock.clockRange  = Cesium.ClockRange.LOOP_STOP;   // se repite en bucle
+  viewer.clock.multiplier  = 600;                            // velocidad de simulación
+  viewer.clock.shouldAnimate = true;
+
+  // ─── 2) Construir SampledPositionProperty con los waypoints ───
+  const position = new Cesium.SampledPositionProperty();
+  GALEON_ROUTE.forEach((wp, i) => {
+    const t = Cesium.JulianDate.addSeconds(start, i * SEGMENT_SECONDS, new Cesium.JulianDate());
+    const c = surfacePosition(wp.lng, wp.lat, 0);   // nivel del mar; la quilla está en el origen del modelo
+    position.addSample(t, c);
+  });
+  // Interpolación suave entre puntos
+  position.setInterpolationOptions({
+    interpolationDegree: 2,
+    interpolationAlgorithm: Cesium.HermitePolynomialApproximation
+  });
+
+  // La interpolación es en XYZ cartesianas: entre waypoints la trayectoria
+  // se separa del elipsoide (medido: hasta ~18 km). Se proyecta cada
+  // posición interpolada sobre la superficie del mar (altura 0). Usa un
+  // scratch reutilizado: no crea objetos en cada frame.
+  const sampled = position;
+  const rawScratch = new Cesium.Cartesian3();
+  const seaLevelPosition = new Cesium.CallbackProperty((time, result) => {
+    const p = sampled.getValue(time, rawScratch);
+    return p && Cesium.Ellipsoid.WGS84.scaleToGeodeticSurface(p, result);
+  }, false);
+
+  // ─── 3) Añadir la entidad del galeón al viewer ───
+  galeonEntity = viewer.entities.add({
+    name: 'Galeón de Manila',
+    position: seaLevelPosition,
+    orientation: new Cesium.VelocityOrientationProperty(seaLevelPosition),  // proa hacia el rumbo
+    model: {
+      uri: MODEL_URI,
+      scale: 1,                                                   // tamaño real del modelo (la visibilidad la controla minimumPixelSize)
+      minimumPixelSize: 80,                                       // mínimo 80px en pantalla aunque la cámara esté muy lejos
+      maximumScale: 20000,                                        // límite máximo para que no engulla el continente al hacer zoom
+      // Sin CLAMP_TO_GROUND: la posición ya está sobre el agua y así no se
+      // remuestrea la malla del globo en cada frame de la animación.
+      runAnimations: false
+    },
+    properties: {
+      title: 'Galeón de Manila',
+      description: 'Ruta histórica del comercio entre Acapulco y Manila (1565-1815). La ida usaba los vientos alisios; el tornaviaje subía hasta latitudes de Japón aprovechando la corriente de Kuroshio antes de descender por la costa californiana.'
+    }
+  });
+
+  // ─── 4) Volar la cámara hacia el Pacífico para ver toda la ruta ───
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(-160, 25, 22000000),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+    duration: 2.5
+  });
+
+  // ─── 5) Actualizar la UI ───
+  document.getElementById('btn-galeon').classList.add('active');
+  document.getElementById('btn-close-event').classList.add('visible');
+}
+
+function stopGaleonEvent() {
+  if (!galeonEntity) return;
+
+  // Eliminar la entidad del galeón del visor
+  viewer.entities.remove(galeonEntity);
+  galeonEntity = null;
+
+  // Restaurar reloj
+  if (savedClockState) {
+    viewer.clock.startTime   = savedClockState.startTime;
+    viewer.clock.stopTime    = savedClockState.stopTime;
+    viewer.clock.currentTime = savedClockState.currentTime;
+    viewer.clock.clockRange  = savedClockState.clockRange;
+    viewer.clock.multiplier  = savedClockState.multiplier;
+    viewer.clock.shouldAnimate = savedClockState.shouldAnimate;
+    savedClockState = null;
+  } else {
+    viewer.clock.shouldAnimate = false;
+  }
+
+  // UI
+  document.getElementById('btn-galeon').classList.remove('active');
+  document.getElementById('btn-close-event').classList.remove('visible');
+}
+
+document.getElementById('btn-galeon').addEventListener('click', startGaleonEvent);
+document.getElementById('btn-close-event').addEventListener('click', stopGaleonEvent);
+
+// Tooltip extendido para el galeón (al clicar sobre el barco/estela en el mapa)
+// La lógica de tooltip existente ya lee props.title, así que el galeón se muestra
+// automáticamente sin código adicional.
+
+// ════════════════════════════════════════════════════════════════════════
+// BANDERA ONDEANTE — Canvas 2D con onda senoidal + luz/sombra
+// ════════════════════════════════════════════════════════════════════════
+// IIFE aislado: no toca variables globales, no usa Cesium, no interfiere.
+// Renderiza la imagen `bandera.png` dividida en slices verticales
+// desplazados por una doble onda senoidal. Un pase posterior pinta luces
+// y sombras según la pendiente local de la onda para simular la tela.
+(function initWavingFlag() {
+  const canvas = document.getElementById('flag-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const W = canvas.width;    // 180
+  const H = canvas.height;   // 130
+
+  // Margen interno para que la onda no se recorte en los bordes
+  const PAD_X = 4;
+  const PAD_Y = 12;
+  const FLAG_W = W - PAD_X * 2;
+  const FLAG_H = H - PAD_Y * 2;
+
+  const img = new Image();
+  img.onload = () => {
+    // Canvas auxiliar con la bandera pre-renderizada al tamaño correcto
+    const off = document.createElement('canvas');
+    off.width  = FLAG_W;
+    off.height = FLAG_H;
+    const offCtx = off.getContext('2d');
+    offCtx.drawImage(img, 0, 0, FLAG_W, FLAG_H);
+
+    // Parámetros de la onda
+    const SLICE   = 2;     // ancho de cada tira en píxeles
+    const WAVELEN = 26;    // longitud de onda (mayor = ondas más anchas)
+    const SPEED   = 1.8;   // velocidad de propagación
+    const BASE_AMP = 6;    // amplitud máxima en el extremo libre
+
+    let time = 0;
+    function tick() {
+      time += 0.05;
+      ctx.clearRect(0, 0, W, H);
+
+      // ── Paso 1: dibujar la imagen distorsionada por slices ──
+      for (let x = 0; x < FLAG_W; x += SLICE) {
+        // Amplitud cuadrática: 0 en el mástil (izquierda), máxima en el extremo libre
+        const factor = x / FLAG_W;
+        const amp    = BASE_AMP * factor * factor;
+
+        // Doble onda (frecuencia y fase distintas) para movimiento orgánico
+        const phase  = (x / WAVELEN) - time * SPEED;
+        const offsetY = amp * Math.sin(phase)
+                      + amp * 0.35 * Math.sin(phase * 1.7 + 1.2);
+
+        ctx.drawImage(
+          off,
+          x, 0, SLICE, FLAG_H,                     // origen
+          PAD_X + x, PAD_Y + offsetY, SLICE, FLAG_H // destino
+        );
+      }
+
+      // ── Paso 2: overlay de luz/sombra según la pendiente de la onda ──
+      for (let x = 0; x < FLAG_W; x += SLICE) {
+        const factor = x / FLAG_W;
+        const amp    = BASE_AMP * factor * factor;
+        const phase  = (x / WAVELEN) - time * SPEED;
+
+        // Derivada respecto a x = pendiente local
+        const slope = amp * (1 / WAVELEN) * Math.cos(phase)
+                    + amp * 0.35 * (1.7 / WAVELEN) * Math.cos(phase * 1.7 + 1.2);
+
+        if (slope > 0) {
+          // Tela inclinándose hacia "arriba" → sombra
+          ctx.fillStyle = `rgba(0, 0, 0, ${Math.min(0.22, slope * 0.45)})`;
+        } else {
+          // Tela inclinándose hacia "abajo" → luz
+          ctx.fillStyle = `rgba(255, 245, 220, ${Math.min(0.18, -slope * 0.35)})`;
+        }
+        ctx.fillRect(PAD_X + x, PAD_Y, SLICE, FLAG_H);
+      }
+
+      requestAnimationFrame(tick);
+    }
+    tick();
+  };
+
+  img.onerror = () => {
+    console.warn('No se pudo cargar bandera.png — la bandera ondeante se omite.');
+  };
+
+  img.src = 'bandera.png';
+})();
+</script>
+</body>
+</html>

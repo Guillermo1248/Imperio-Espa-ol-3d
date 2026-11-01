@@ -1,0 +1,30 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "title": "Ciudades principales del Imperio Español, 1794",
+    "description": "Selección de villas y ciudades destacadas del Imperio en 1794. Se integran como marcadores estándar en la capa 'Ciudades fundadas'."
+  },
+  "features": [
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-96.13, 19.20]}, "properties": {"title": "Veracruz", "description": "Principal puerto del Virreinato de Nueva España. Llave del comercio con la Península y sede de la Flota de Nueva España."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-99.88, 16.87]}, "properties": {"title": "Acapulco", "description": "Puerto del Pacífico en Nueva España. Terminal americana del Galeón de Manila desde 1565."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-103.35, 20.66]}, "properties": {"title": "Guadalajara", "description": "Capital de la Intendencia de Nueva Galicia. Sede de la Real Audiencia de Guadalajara."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-82.36, 23.13]}, "properties": {"title": "La Habana", "description": "Capital de la Capitanía General de Cuba. Astillero clave del Imperio y eje del Sistema de Flotas."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-66.10, 18.47]}, "properties": {"title": "San Juan de Puerto Rico", "description": "Capital de Puerto Rico. Bastión defensivo del Caribe oriental con el castillo de San Felipe del Morro."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-69.95, 18.47]}, "properties": {"title": "Santo Domingo", "description": "Primera ciudad fundada por europeos en América (1496). Capital de la Capitanía de Santo Domingo."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-90.52, 14.63]}, "properties": {"title": "Santiago de Guatemala", "description": "Sede de la Capitanía General de Guatemala, dependiente de Nueva España. Hoy Ciudad de Guatemala."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-81.31, 29.89]}, "properties": {"title": "San Agustín de la Florida", "description": "Ciudad más antigua continuamente habitada de EEUU (1565). Capital de la Florida Oriental española."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-122.42, 37.77]}, "properties": {"title": "San Francisco", "description": "Presidio y misión fundados en 1776. Frontera norte de la Alta California española."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-118.24, 34.05]}, "properties": {"title": "Los Ángeles", "description": "Fundada en 1781 como El Pueblo de Nuestra Señora la Reina de los Ángeles del Río de Porciúncula."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-75.51, 10.39]}, "properties": {"title": "Cartagena de Indias", "description": "Puerto fortificado del Virreinato de Nueva Granada. Principal plaza fuerte del Caribe español."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-66.90, 10.50]}, "properties": {"title": "Caracas", "description": "Capital de la Capitanía General de Venezuela (autónoma desde 1777). Sede de la Real Audiencia desde 1786."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-78.47, -0.18]}, "properties": {"title": "Quito", "description": "Sede de la Real Audiencia de Quito, perteneciente al Virreinato de Nueva Granada."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-65.75, -19.59]}, "properties": {"title": "Potosí", "description": "Ciudad minera de plata del Alto Perú (Virreinato del Río de la Plata). La 'Villa Imperial' producía la riqueza del Imperio."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-70.65, -33.46]}, "properties": {"title": "Santiago de Chile", "description": "Capital de la Capitanía General de Chile, subordinada al Virreinato del Perú hasta 1798."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-77.13, -12.05]}, "properties": {"title": "El Callao", "description": "Puerto principal del Virreinato del Perú. Punto de partida del comercio del Pacífico Sur."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-56.16, -34.90]}, "properties": {"title": "Montevideo", "description": "Fundada en 1724 como contención frente a la expansión portuguesa. Banda Oriental del Río de la Plata."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [-64.18, -31.42]}, "properties": {"title": "Córdoba", "description": "Capital de la Intendencia de Córdoba del Tucumán (Río de la Plata). Sede de la Universidad de Córdoba (1613)."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [120.97, 14.60]}, "properties": {"title": "Manila", "description": "Capital de la Capitanía General de Filipinas, dependiente del Virreinato de Nueva España. Punto asiático del Galeón."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [123.89, 10.32]}, "properties": {"title": "Cebú", "description": "Primera ciudad fundada en Filipinas por Legazpi (1565). Sede del Obispado de Cebú."} },
+    { "type": "Feature", "geometry": {"type": "Point", "coordinates": [120.90, 14.50]}, "properties": {"title": "Cavite", "description": "Puerto y arsenal naval de Manila. Astillero donde se construían los galeones del Pacífico."} }
+  ]
+}
