@@ -489,6 +489,13 @@ def exportar(render=False):
     bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, "columnas_hercules.glb"),
                               export_format="GLB", use_selection=True,
                               export_apply=True, export_yup=True)
+    # versión para el visor Cesium: sin olas (el mar ya lo pone el globo)
+    mar_ob = bpy.data.objects.get("Mar")
+    if mar_ob:
+        mar_ob.select_set(False)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, "columnas_hercules_mapa.glb"),
+                              export_format="GLB", use_selection=True,
+                              export_apply=True, export_yup=True)
     if render:
         sc = bpy.context.scene
         sc.render.engine = "CYCLES"

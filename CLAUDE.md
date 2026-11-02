@@ -35,6 +35,11 @@ imperio-espanol-1794/
 ├── pin_universidades.png                 ← idem, para billboards Cesium
 ├── pin_ciudades.png                      ← idem
 │
+├── PLVS ULTRA/                           ← Columnas de Hércules (Blender)
+│   ├── columnas_hercules.py              ← script procedural (genera todo lo demás)
+│   ├── columnas_hercules.blend / .glb    ← escena y modelo completo (con olas)
+│   └── columnas_hercules_mapa.glb        ← versión sin olas que carga el visor
+│
 ├── galeon/
 │   ├── scene.gltf                        ← modelo 3D del Galeón de Manila
 │   ├── scene.bin
@@ -270,6 +275,16 @@ galeonEntity = viewer.entities.add({
 
 `SEGMENT_SECONDS = 600`, `multiplier = 600`, `clockRange: LOOP_STOP`,
 `start = 1794-01-01T00:00:00Z`. Sin `path` (sin estela) por decisión de diseño.
+
+### 6. Columnas de Hércules (hito del Estrecho)
+
+Botón "🏛️ Columnas de Hércules" en el panel de eventos. Carga
+`PLVS ULTRA/columnas_hercules_mapa.glb` (con `encodeURI` por el espacio) en
+el punto medio del Estrecho (-5.38, 36.02), `scale: 5000`, `heading 0`
+(Cesium ya gira el glTF: el eje de las columnas queda norte-sur y el
+frente mira al este → PLVS en África, VLTRA en Europa). Mientras está
+activo usa una `DirectionalLight` fija y la restaura al cerrar.
+"✕ Cerrar evento" cierra a la vez el galeón y las columnas.
 
 ---
 

@@ -558,6 +558,11 @@
     <span class="event-sub">Acapulco ⇆ Manila — Tornaviaje por Japón</span>
   </button>
 
+  <button class="event-btn" id="btn-columnas">
+    <span class="event-icon">🏛️</span>Columnas de Hércules
+    <span class="event-sub">Estrecho de Gibraltar — PLVS VLTRA</span>
+  </button>
+
   <button class="event-close-btn" id="btn-close-event">✕ Cerrar evento</button>
 </div>
 
@@ -1452,7 +1457,80 @@ function stopGaleonEvent() {
 }
 
 document.getElementById('btn-galeon').addEventListener('click', startGaleonEvent);
-document.getElementById('btn-close-event').addEventListener('click', stopGaleonEvent);
+document.getElementById('btn-close-event').addEventListener('click', () => {
+  stopGaleonEvent();
+  stopColumnasEvent();
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// HITO: COLUMNAS DE HÉRCULES (Estrecho de Gibraltar)
+// ════════════════════════════════════════════════════════════════════════
+// Modelo generado con Blender (PLVS ULTRA/columnas_hercules.py), versión
+// sin olas. Se coloca entre Calpe (Gibraltar) y Abila (Yebel Musa), con
+// las columnas alineadas norte-sur y el frente mirando al Mediterráneo:
+// vistas desde el este, PLVS queda en África y VLTRA en Europa.
+// Como el galeón: sin heightReference, base del modelo en Z = 0.
+const COLUMNAS_URI   = encodeURI('PLVS ULTRA/columnas_hercules_mapa.glb');
+const COLUMNAS_POS   = { lng: -5.38, lat: 36.02 };   // punto medio del Estrecho
+const COLUMNAS_SCALE = 5000;                          // 4,4 m entre ejes → 22 km
+
+let columnasEntity = null;
+let savedLight = null;
+
+function startColumnasEvent() {
+  if (columnasEntity) return;
+  const position = surfacePosition(COLUMNAS_POS.lng, COLUMNAS_POS.lat, 0);
+  columnasEntity = viewer.entities.add({
+    name: 'Columnas de Hércules',
+    position,
+    orientation: Cesium.Transforms.headingPitchRollQuaternion(
+      position, new Cesium.HeadingPitchRoll(0, 0, 0)),
+    // heading 0: Cesium ya gira el glTF (+Z → este), así que el eje de las
+    // columnas (X de Blender) queda norte-sur y el frente mira al este.
+    model: {
+      uri: COLUMNAS_URI,
+      scale: COLUMNAS_SCALE,
+      minimumPixelSize: 120,
+      maximumScale: COLUMNAS_SCALE * 4
+    },
+    properties: {
+      title: 'Columnas de Hércules',
+      description: 'Según el mito, Hércules separó Europa de África y alzó dos columnas en Calpe (Gibraltar) y Abila (Yebel Musa) con la advertencia «Non plus ultra»: no hay nada más allá. Carlos I adoptó el lema «Plus Ultra» —más allá— como emblema de un imperio que cruzó el Atlántico.'
+    }
+  });
+
+  // Luz fija desde el sureste para que el modelo se vea bien a cualquier
+  // hora del reloj (la luz solar por defecto puede dejarlo en sombra).
+  savedLight = viewer.scene.light;
+  const enu = Cesium.Transforms.eastNorthUpToFixedFrame(position);
+  const dirLocal = new Cesium.Cartesian3(-0.55, 0.45, -0.7);   // hacia el oeste, norte y abajo
+  const dir = Cesium.Matrix4.multiplyByPointAsVector(enu, dirLocal, new Cesium.Cartesian3());
+  viewer.scene.light = new Cesium.DirectionalLight({
+    direction: Cesium.Cartesian3.normalize(dir, dir), intensity: 2.5
+  });
+
+  // Cámara desde el Mediterráneo mirando al oeste, hacia el Atlántico
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(-3.6, 35.98, 26000),
+    orientation: { heading: Cesium.Math.toRadians(-88), pitch: Cesium.Math.toRadians(-4), roll: 0 },
+    duration: 3
+  });
+
+  document.getElementById('btn-columnas').classList.add('active');
+  document.getElementById('btn-close-event').classList.add('visible');
+  viewer.scene.requestRender();
+}
+
+function stopColumnasEvent() {
+  if (!columnasEntity) return;
+  viewer.entities.remove(columnasEntity);
+  columnasEntity = null;
+  if (savedLight) { viewer.scene.light = savedLight; savedLight = null; }
+  document.getElementById('btn-columnas').classList.remove('active');
+  if (!galeonEntity) document.getElementById('btn-close-event').classList.remove('visible');
+}
+
+document.getElementById('btn-columnas').addEventListener('click', startColumnasEvent);
 
 // Tooltip extendido para el galeón (al clicar sobre el barco/estela en el mapa)
 // La lógica de tooltip existente ya lee props.title, así que el galeón se muestra
