@@ -51,7 +51,7 @@ def main():
         print("\n  Servidor detenido.\n")
         sys.exit(0)
     except OSError as e:
-        if e.errno == 48 or e.errno == 98:
+        if e.errno in (48, 98, 10048):   # macOS, Linux, Windows
             print(f"\n  ⚠️  El puerto {PORT} está ocupado. Cierra el otro proceso o cambia PORT en server.py.\n")
         else:
             raise
